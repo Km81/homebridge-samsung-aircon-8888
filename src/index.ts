@@ -131,8 +131,8 @@ class SamsungAircon {
 			this.aircon
 			.getCharacteristic(Characteristic.HeatingThresholdTemperature)
 			.setProps({
-				minValue: -10,
-				maxValue: 20,
+				minValue: 16,
+				maxValue: 30,
 				minStep: 1,
 				} as HAPNodeJS.CharacteristicProps)
 			.on('get', callbackify(this.getTargetTemperature))
@@ -192,8 +192,8 @@ class SamsungAircon {
 	private genCurlGetStr: (dottedKey?: string) => string
 	= (dottedKey) => {
 		const last_str = !!dottedKey
-			? ` \'.Devices[0].${dottedKey}\'`
-			: ` \'.Devices[0]\'`
+			? ` \'.Devices[1].${dottedKey}\'`
+			: ` \'.Devices[1]\'`
 		const str = this.curlGetPartials.join(' ') + last_str
 		return str
 	}
@@ -394,12 +394,14 @@ class SamsungAircon {
 				return char.AUTO
 			case 'Cool':
 				return char.COOL
-			case 'Heat':
+			case 'CoolClean':
+				return char.COOL
+			case 'DryClean':
+				return char.HEAT
+			case 'DryClean':
 				return char.HEAT
 			// Homebridge do not have 'Dry' and 'Wind' (Fan)
 			// Fallback to 'AUTO'
-			case 'Dry':
-				return char.AUTO
 			case 'Wind':
 				return char.AUTO
 		}
@@ -417,9 +419,9 @@ class SamsungAircon {
 						case char.AUTO:
 							return 'Auto'
 						case char.COOL:
-							return 'Cool'
+							return 'CoolClean'
 						case char.HEAT:
-							return 'Heat'
+							return 'DryClean'
 						default:
 							return 'Auto'
 					}
@@ -432,12 +434,12 @@ class SamsungAircon {
 
 	public getSwingMode: () => Promise<EnumValueLiterals<HbSwingModeEnum>>
 	= async () => {
-		const curlResponse = await this.execGetRequest('Wind.direction') as Swing | undefined
+		const curlResponse = await this.execGetRequest('Mode.options[1]') as Swing | undefined
 		const char = Characteristic.SwingMode
 		switch (curlResponse) {
-			case 'Fix':
+			case 'Comode_Off':
 				return char.SWING_DISABLED
-			case 'Up_And_Low':
+			case 'Comode_Nano':
 				return char.SWING_ENABLED
 		}
 		this.log('Samsung Aircon: invalid swing mode')
@@ -450,14 +452,14 @@ class SamsungAircon {
 		const cur_wind_status = await this.execGetRequest('Wind') as any as Wind | undefined
 		const curlStr = this.genCurlSetStr(
 			Object.assign(cur_wind_status || {}, {
-				direction: (() => {
+				options: (() => {
 					switch(state) {
 						case char.SWING_DISABLED:
-							return 'Fix'
+							return 'Comode_Off'
 						case char.SWING_ENABLED:
-							return 'Up_And_Low'
+							return 'Comode_Nano'
 						default:
-							return 'Up_And_Low'
+							return 'Comode_Off'
 					}
 				})() as Swing
 			}),
@@ -524,14 +526,16 @@ class SamsungAircon {
 				return char.IDLE
 			case 'Cool':
 				return char.COOLING
-			case 'Heat':
+			case 'CoolClean':
+				return char.COOLING
+			case 'Dry':
+				return char.HEATING
+			case 'DryClean':
 				return char.HEATING
 			// Homebridge do not have 'Dry' and 'Wind' (Fan)
 			// Fallback to 'AUTO'
-			case 'Dry':
-				return char.INACTIVE
 			case 'Wind':
-				return char.INACTIVE
+				return char.IDLE
 		}
 		this.log('Samsung Aircon: invalid current heating cooling state')
 		throw ('invalid-current-heating-cooling-state')
